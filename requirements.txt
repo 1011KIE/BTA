@@ -1,0 +1,13 @@
+torch
+torchvision
+numpy
+pillow
+tqdm
+transformers
+accelerate
+lpips
+open-clip-torch
+timm
+scikit-image
+scipy
+pandas
