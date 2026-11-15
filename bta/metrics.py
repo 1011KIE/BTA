@@ -14,7 +14,6 @@ class OptionalMetrics:
         self.clip_model = None
         self.clip_processor = None
         self.dino_model = None
-        self.dino_hook = None
         self.dino_qkv = None
         self.clip_path = clip_path
         self.dino_ckpt = Path(dino_ckpt).expanduser()

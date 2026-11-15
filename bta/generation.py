@@ -49,7 +49,6 @@ def generate_masked(
     next_token_map = sos.unsqueeze(1) + switti.pos_start.expand(2 * B, switti.first_l, -1) + lvl_pos[:, : switti.first_l]
     cur_L = 0
     f_hat = sos.new_zeros(B, switti.Cvae, switti.patch_nums[-1], switti.patch_nums[-1])
-    sampled_tokens = []
 
     for b in switti.blocks:
         b.attn.kv_caching(switti.use_ar)
@@ -109,7 +108,6 @@ def generate_masked(
                 else:
                     edit_mask = edit_mask_for_scale(mask_t, pn, si, len(switti.patch_nums), method_cfg, style_all)
                     idx_Bl = torch.where(edit_mask, idx_Bl, src_idx)
-            sampled_tokens.append(idx_Bl.detach().clone())
 
             h_BChw = vae_quant.embedding(idx_Bl).transpose_(1, 2).reshape(B, switti.Cvae, pn, pn)
             f_hat, next_token_map = vae_quant.get_next_autoregressive_input(si, len(switti.patch_nums), f_hat, h_BChw)
@@ -123,4 +121,4 @@ def generate_masked(
             b.cross_attn.kv_caching(False)
 
     img01 = vae.fhat_to_img(f_hat).add(1).mul(0.5).clamp(0, 1)
-    return img01, sampled_tokens
+    return img01

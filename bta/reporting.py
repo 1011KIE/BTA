@@ -33,7 +33,11 @@ def summarize(rows, methods):
         sub = [r for r in rows if r["method"] == method]
         out[method] = {"n": len(sub)}
         for metric in metrics:
-            vals = [r[metric] for r in sub if r.get(metric) is not None and not (isinstance(r.get(metric), float) and math.isnan(r.get(metric)))]
+            vals = [
+                value for row in sub
+                if (value := row.get(metric)) is not None
+                and not (isinstance(value, float) and math.isnan(value))
+            ]
             out[method][metric + "_n"] = len(vals)
             out[method][metric + "_mean"] = float(np.mean(vals)) if vals else None
             out[method][metric + "_median"] = float(np.median(vals)) if vals else None

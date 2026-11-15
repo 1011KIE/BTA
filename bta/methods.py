@@ -1,5 +1,4 @@
-﻿import math
-from .policies import MethodCfg
+import math
 import torch
 import torch.nn.functional as F
 
@@ -111,42 +110,23 @@ def token_authority_edit_mask(cov, si, n_scales, mode):
             fine_core = (ratio >= 0.95) & (cov >= 0.26)
             return gate | fine_core
         raise ValueError(mode)
-    if mode == "source":
-        # Source-owned by default; only high edit coverage receives prompt authority.
-        prompt_tau = 0.92 - 0.38 * ratio
-        return cov >= prompt_tau
-    if mode == "source_lite":
-        # Slightly loosen source ownership to recover prompt semantics while
-        # keeping shared/background tokens source-owned until late scales.
-        prompt_tau = 0.88 - 0.42 * ratio
-        shared_tau = 0.50 - 0.20 * ratio
-        edit = cov >= prompt_tau
-        return edit | (cov >= shared_tau) if ratio >= 0.85 else edit
-    if mode == "source_sem":
-        # More semantic authority than source_lite, still stricter than balanced.
-        prompt_tau = 0.86 - 0.44 * ratio
-        shared_tau = 0.46 - 0.20 * ratio
-        edit = cov >= prompt_tau
-        return edit | (cov >= shared_tau) if ratio >= 0.75 else edit
-    if mode == "balanced":
-        # Shared boundary tokens open gradually at later scales.
-        prompt_tau = 0.82 - 0.46 * ratio
-        shared_tau = 0.54 - 0.24 * ratio
-        edit = cov >= prompt_tau
-        return edit | (cov >= shared_tau) if ratio >= 0.55 else edit
-    if mode == "prompt":
-        # More prompt-owned tokens, used to test edit-strength recovery.
-        prompt_tau = 0.70 - 0.38 * ratio
-        shared_tau = 0.40 - 0.18 * ratio
-        edit = cov >= prompt_tau
-        return edit | (cov >= shared_tau) if ratio >= 0.45 else edit
-    if mode == "boundary":
-        # Boundary/shared tokens stay source-owned until fine scales, then open.
-        prompt_tau = 0.88 - 0.44 * ratio
-        shared_tau = 0.50 - 0.20 * ratio
-        edit = cov >= prompt_tau
-        return edit | (cov >= shared_tau) if ratio >= 0.70 else edit
-    raise ValueError(mode)
+    # (prompt intercept, prompt slope, shared intercept, shared slope, release scale)
+    schedules = {
+        "source": (0.92, 0.38, None, None, None),
+        "source_lite": (0.88, 0.42, 0.50, 0.20, 0.85),
+        "source_sem": (0.86, 0.44, 0.46, 0.20, 0.75),
+        "balanced": (0.82, 0.46, 0.54, 0.24, 0.55),
+        "prompt": (0.70, 0.38, 0.40, 0.18, 0.45),
+        "boundary": (0.88, 0.44, 0.50, 0.20, 0.70),
+    }
+    if mode not in schedules:
+        raise ValueError(mode)
+    prompt_start, prompt_slope, shared_start, shared_slope, release_scale = schedules[mode]
+    edit = cov >= prompt_start - prompt_slope * ratio
+    if release_scale is not None and ratio >= release_scale:
+        edit = edit | (cov >= shared_start - shared_slope * ratio)
+    return edit
+
 
 
 def eroded_edit_mask(mask_t, radius):
@@ -195,6 +175,3 @@ def composite_postlock(src01, out01, mask_t, feather=0):
     k = int(feather) * 2 + 1
     soft = F.avg_pool2d(mask_t.float(), kernel_size=k, stride=1, padding=feather).clamp(0, 1)
     return out01 * soft + src01 * (1.0 - soft)
-
-
-

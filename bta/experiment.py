@@ -13,7 +13,7 @@ from .config import METRIC_PROTOCOL_VERSION
 from .data import clean_prompt, decode_rle_mask, load_image, load_mapping, save_overlay, select_samples, tensor01
 from .generation import generate_masked
 from .methods import composite_postlock
-from .policies import parse_method, resolve_routed_method
+from .policies import parse_method
 from .metrics import OptionalMetrics, core_metrics
 from .reporting import append_checkpoint_row, compact_checkpoint, fmt, load_checkpoint_rows, summarize, write_summary_md
 
@@ -98,8 +98,8 @@ def run_experiment(args):
             if key in completed:
                 print(f"  [resume] skip {cfg_m.name}", flush=True)
                 continue
-            actual_cfg = resolve_routed_method(cfg_m, rec.get("editing_type_id", ""), float(mask_t.mean().item()))
-            torch.cuda.synchronize() if torch.cuda.is_available() else None
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
             start_alloc = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
             if torch.cuda.is_available():
                 torch.cuda.reset_peak_memory_stats()
@@ -108,12 +108,12 @@ def run_experiment(args):
                 out01 = src_rec01
             else:
                 with torch.inference_mode(), torch.autocast("cuda", enabled=torch.cuda.is_available(), dtype=dtype):
-                    out01, _ = generate_masked(
+                    out01 = generate_masked(
                         pipe,
                         prompt=prompt,
                         source_tokens=source_tokens,
                         mask_t=mask_t,
-                        method_cfg=actual_cfg,
+                        method_cfg=cfg_m,
                         style_all=style_all,
                         seed=args.seed,
                         cfg_scale=args.cfg,
@@ -123,9 +123,10 @@ def run_experiment(args):
                         last_scale_temp=args.last_scale_temp,
                     )
                 out01 = out01.float()
-                if actual_cfg.post_lock:
-                    out01 = composite_postlock(src01, out01, mask_t, actual_cfg.inner_feather).clamp(0, 1)
-            torch.cuda.synchronize() if torch.cuda.is_available() else None
+                if cfg_m.post_lock:
+                    out01 = composite_postlock(src01, out01, mask_t, cfg_m.inner_feather).clamp(0, 1)
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
             elapsed = time.time() - t0
             peak_alloc = torch.cuda.max_memory_allocated() if torch.cuda.is_available() else 0
             peak_reserved = torch.cuda.max_memory_reserved() if torch.cuda.is_available() else 0
@@ -133,8 +134,8 @@ def run_experiment(args):
                 "sample_id": sid,
                 "method": cfg_m.name,
                 "resolved_method": (
-                    f"{actual_cfg.projection}_fix{actual_cfg.fix_si}_{actual_cfg.tau_family}_"
-                    f"floor{actual_cfg.floor_mult:g}_erode{actual_cfg.mask_erode_px}"
+                    f"{cfg_m.projection}_fix{cfg_m.fix_si}_{cfg_m.tau_family}_"
+                    f"floor{cfg_m.floor_mult:g}_erode{cfg_m.mask_erode_px}"
                 ),
                 "image_path": str(img_path),
                 "editing_type_id": rec.get("editing_type_id", ""),
