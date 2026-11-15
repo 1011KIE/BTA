@@ -1,5 +1,7 @@
 # BTA: Boundary-Aware Token Assignment for Fixed-Mask Autoregressive Image Editing
 
+[Paper (PDF)](BTA%20-%20Boundary-Aware%20Token%20Assignment%20for%20Fixed-Mask%20Autoregressive%20Image%20Editing.pdf)
+
 This repository contains the main experiment code for Boundary-aware Token Assignment (BTA) on fixed-mask autoregressive image editing. The release is intentionally minimal: a Python entry point, focused runner modules, one launch script, and dependency metadata.
 
 ## Project Structure
